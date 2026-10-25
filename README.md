@@ -4,7 +4,7 @@
 
 This repository implements a quantum compilation and simulation pipeline for the **NQCC 2025 Hackathon** (OpenBioSim & Alice & Bob cat-qubit challenge), targeting the vertical excitation energy ($T_0 \to S_1$) of molecular dioxygen ($O_2$).
 
-By using Clifford group theory and \mathbb{Z}_2 stabilizer symmetries**, we compress the electronic Hamiltonian and optimize circuit execution down to the theoretical hardware minimum.
+By using Clifford group theory and \mathbb{Z}_2 stabilizer symmetries, we compress the electronic Hamiltonian and optimize circuit execution down to the theoretical hardware minimum.
 
 ---
 
