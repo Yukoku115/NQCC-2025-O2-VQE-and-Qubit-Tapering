@@ -44,10 +44,6 @@ Reference values: 1.467 eV is the exact result for this active space (the challe
 - **Sectors were chosen by classical diagonalization.** That is only feasible because the system is tiny. For larger systems, sectors must be fixed from physical quantum numbers (particle number, S_z, spatial symmetry) or from the reference state.
 - **S₁ identification relies on matching energies.** ⟨S²⟩ has not yet been evaluated in the tapered space; the S² operator should be tapered too to confirm the spin of each state.
 - **Same-sector excited states:** if an excited state shares a sector with the ground state, sector separation can't isolate it, and an overlap method (e.g. destructive SWAP VQD) is still needed inside the tapered space.
-- **Hardware transpilation not done yet:** gate counts above are for abstract gates. They haven't been transpiled to Alice & Bob's logical gate set (`qiskit-alice-bob-provider`), where the continuous RY angles must be synthesized from a discrete gate set.
-- **Tapering is a Hamiltonian-level reduction.** It isn't a general circuit-compilation pass and relies on symmetries specific to the problem.
-
----
 
 ### Reproducing / filling in the TBD entries
 ```python
