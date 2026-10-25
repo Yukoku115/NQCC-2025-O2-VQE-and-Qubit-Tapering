@@ -2,9 +2,9 @@
 
 ## Symmetry-Aware Quantum Circuit Compilation & Qubit Tapering for Molecular Oxygen ($O_2$)
 
-This repository implements an end-to-end quantum compilation and simulation pipeline for the **NQCC 2025 Hackathon** (OpenBioSim & Alice & Bob cat-qubit challenge), targeting the vertical excitation energy ($T_0 \to S_1$) of molecular dioxygen ($O_2$).
+This repository implements a quantum compilation and simulation pipeline for the **NQCC 2025 Hackathon** (OpenBioSim & Alice & Bob cat-qubit challenge), targeting the vertical excitation energy ($T_0 \to S_1$) of molecular dioxygen ($O_2$).
 
-By leveraging **Clifford group theory and $\mathbb{Z}_2$ stabilizer symmetries**, we compress the electronic Hamiltonian and optimize circuit execution down to the theoretical hardware minimum.
+By using Clifford group theory and \mathbb{Z}_2 stabilizer symmetries**, we compress the electronic Hamiltonian and optimize circuit execution down to the theoretical hardware minimum.
 
 ---
 
@@ -12,12 +12,12 @@ By leveraging **Clifford group theory and $\mathbb{Z}_2$ stabilizer symmetries**
 
 | Metric | Baseline VQD (CSWAP) | Task 1: Destructive SWAP | Task 2 & 3: Tapered VQE (This Work) | Total Reduction |
 | :--- | :---: | :---: | :---: | :---: |
-| **Active Molecule Qubits** | 6 qubits | 6 qubits | **2 qubits** | **67% reduction** |
-| **Hardware Wires (Excited State)** | 13 qubits (with ancilla) | 12 qubits | **2 qubits** | **85% reduction** |
-| **Overlap / SWAP Test CNOTs** | **42 CNOTs** (6 CSWAPs) | 6 CNOTs | **0 CNOTs** (Orthogonal by symmetry!) | **100% eliminated** |
-| **Ansatz Entangling CNOTs** | ~40 CNOTs (UCCSD) | ~40 CNOTs | **1 CNOT** | **97.5% reduction** |
-| **Total CNOTs per Circuit** | **> 80 CNOTs** | **~46 CNOTs** | **1 CNOT** | **~99% reduction** |
-| **Vertical Excitation Energy ($\Delta E$)** | $1.515\text{ eV}$ (penalty shift) | $1.515\text{ eV}$ | **$1.4675\text{ eV}$** | **Exact CASCI benchmark!** |
+| **Active Molecule Qubits** | 6 qubits | 6 qubits | 2 qubits | 67% reduction |
+| **Hardware Wires (Excited State)** | 13 qubits (with ancilla) | 12 qubits | *2 qubits | 85% reduction |
+| **Overlap / SWAP Test CNOTs** | 42 CNOTs (6 CSWAPs) | 6 CNOTs | 0 CNOTs (Orthogonal by symmetry!) | 100% eliminated |
+| **Ansatz Entangling CNOTs** | ~40 CNOTs (UCCSD) | ~40 CNOTs | 1 CNOT | 97.5% reduction |
+| **Total CNOTs per Circuit** | > 80 CNOTs | ~46 CNOTs | 1 CNOT | ~99% reduction |
+| **Vertical Excitation Energy ($\Delta E$)** | $1.515\text{ eV}$ (penalty shift) | $1.515\text{ eV}$ | $1.4675\text{ eV}$ | Exact CASCI benchmark! |
 
 ---
 
@@ -25,7 +25,7 @@ By leveraging **Clifford group theory and $\mathbb{Z}_2$ stabilizer symmetries**
 - **Symplectic $\mathbb{Z}_2$ Symmetries**: Discovered 4 independent Hamiltonian symmetry generators ($\tau_i$) using binary symplectic linear algebra over $\mathbb{F}_2$.
 - **Clifford Frame Transformations**: Constructed explicit unitaries $U = \prod \frac{1}{\sqrt{2}}(\tau_i + X_{k_i})$ to rotate multi-qubit symmetries onto single-qubit Pauli-$X$ operators, decoupling 4 redundant spin-orbitals.
 - **Symmetry Sector Decomposition**: Identified that the Triplet ground state ($T_0$) lives in sector `[-1, -1, 1, 1]` while the Singlet excited state ($S_1$) lives in sector `[1, 1, -1, -1]`. Because both states reside in distinct eigenspaces, $\langle T_0 | S_1 \rangle = 0$ is strictly guaranteed by symmetry, eliminating the need for VQD overlap penalties or SWAP test ancillas.
-- **Hardware-Efficient Execution**: Both states are independently resolved with a **2-qubit, 1-CNOT ansatz** with 4 parameters, completely avoiding barren plateaus and NISQ dephasing errors.
+- **Hardware-Efficient Execution**: Both states are independently resolved with a 2-qubit, 1-CNOT ansatz with 4 parameters, completely avoiding barren plateaus and NISQ dephasing errors.
 
 ---
 
