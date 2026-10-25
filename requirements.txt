@@ -1,0 +1,12 @@
+# Requirements for NQCC Hackathon 2025 - Part 1 (VQE / VQD on O2)
+pennylane>=0.38.0
+pennylane-lightning>=0.38.0
+jax>=0.4.28
+jaxlib>=0.4.28
+optax>=0.2.0
+openfermion>=1.6.0
+pyscf>=2.5.0
+openfermionpyscf>=0.5
+matplotlib>=3.8.0
+notebook>=7.0.0
+ipykernel>=6.29.0
