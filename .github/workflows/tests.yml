@@ -1,0 +1,32 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pennylane openfermionpyscf "jax[cpu]" optax pytest
+
+      - name: Show versions
+        run: python -c "import pennylane, jax, optax; print('pennylane', pennylane.__version__, '| jax', jax.__version__, '| optax', optax.__version__)"
+
+      - name: Run tests
+        run: pytest -v tests/
+
+      - name: Report (sector scan, 2q VQE, gate counts)
+        run: python o2_tapering.py

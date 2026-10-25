@@ -10,14 +10,23 @@ By leveraging **Clifford group theory and $\mathbb{Z}_2$ stabilizer symmetries**
 
 ### Key Compilation & Algorithmic Results
 
-| Metric | Baseline VQD (CSWAP) | Task 1: Destructive SWAP | Task 2 & 3: Tapered VQE (This Work) | Total Reduction |
-| :--- | :---: | :---: | :---: | :---: |
-| **Active Molecule Qubits** | 6 qubits | 6 qubits | **2 qubits** | **67% reduction** |
-| **Hardware Wires (Excited State)** | 13 qubits (with ancilla) | 12 qubits | **2 qubits** | **85% reduction** |
-| **Overlap / SWAP Test CNOTs** | **42 CNOTs** (6 CSWAPs) | 6 CNOTs | **0 CNOTs** (Orthogonal by symmetry!) | **100% eliminated** |
-| **Ansatz Entangling CNOTs** | ~40 CNOTs (UCCSD) | ~40 CNOTs | **1 CNOT** | **97.5% reduction** |
-| **Total CNOTs per Circuit** | **> 80 CNOTs** | **~46 CNOTs** | **1 CNOT** | **~99% reduction** |
-| **Vertical Excitation Energy ($\Delta E$)** | $1.515\text{ eV}$ (penalty shift) | $1.515\text{ eV}$ | **$1.4675\text{ eV}$** | **Exact CASCI benchmark!** |
+| Metric | Baseline VQD (CSWAP) | Task 1: Destructive SWAP | Task 2 & 3: Tapered VQE (This Work) |
+| :--- | :---: | :---: | :---: |
+| **Active Molecule Qubits** | 6 qubits | 6 qubits | **2 qubits** |
+| **Hardware Wires (Excited State)** | 13 qubits (with ancilla) | 12 qubits | **2 qubits** |
+| **Overlap test gates** | 6 CSWAPs + 2 H | 6 CNOTs + 6 H | **none** (orthogonal by symmetry) |
+| **Ansatz CNOTs (6q UCCSD state prep)** | TBD | TBD | **1 CNOT** |
+| **Total CNOTs, excited-state circuit** | TBD | TBD | **1 CNOT** |
+| **Vertical Excitation Energy ($\Delta E$)** | $1.515\text{ eV}$ (penalty shift) | TBD | TBD (VQE); $1.4675\text{ eV}$ exact in sector |
+
+CNOT counts are **measured, not estimated**: every circuit is decomposed to CNOT + single-qubit gates and counted (`python o2_tapering.py`, the last cell of `VQD-O2-colab.ipynb`, or the "Report" step of the CI run). Cells marked TBD are filled in from that output. Note that `qml.specs` on a circuit decomposed only with `max_expansion=3` counts each `SingleExcitation`/`DoubleExcitation` as one gate (this gave "6 CNOTs / 30 gates" for the destructive SWAP circuit), so it under-reports the hardware CNOT count.
+
+| Circuit (fully decomposed) | Wires | CNOTs | Total gates |
+| :--- | :---: | :---: | :---: |
+| (a) 6-qubit `AllSinglesDoubles` VQE | 6 | TBD | TBD |
+| (b) VQD overlap with CSWAP SWAP test | 13 | TBD | TBD |
+| (c) VQD overlap with destructive SWAP test | 12 | TBD | TBD |
+| (d) 2-qubit tapered VQE ansatz | 2 | 1 | 9 |
 
 ---
 
@@ -25,7 +34,62 @@ By leveraging **Clifford group theory and $\mathbb{Z}_2$ stabilizer symmetries**
 - **Symplectic $\mathbb{Z}_2$ Symmetries**: Discovered 4 independent Hamiltonian symmetry generators ($\tau_i$) using binary symplectic linear algebra over $\mathbb{F}_2$.
 - **Clifford Frame Transformations**: Constructed explicit unitaries $U = \prod \frac{1}{\sqrt{2}}(\tau_i + X_{k_i})$ to rotate multi-qubit symmetries onto single-qubit Pauli-$X$ operators, decoupling 4 redundant spin-orbitals.
 - **Symmetry Sector Decomposition**: Identified that the Triplet ground state ($T_0$) lives in sector `[-1, -1, 1, 1]` while the Singlet excited state ($S_1$) lives in sector `[1, 1, -1, -1]`. Because both states reside in distinct eigenspaces, $\langle T_0 | S_1 \rangle = 0$ is strictly guaranteed by symmetry, eliminating the need for VQD overlap penalties or SWAP test ancillas.
-- **Hardware-Efficient Execution**: Both states are independently resolved with a **2-qubit, 1-CNOT ansatz** with 4 parameters, completely avoiding barren plateaus and NISQ dephasing errors.
+  - $T_0$ appears in **two** sectors, `[-1, -1, 1, 1]` and `[-1, -1, -1, -1]`, both with $E = -147.632415$ Ha. These are two of the three components of the triplet (the full 6-qubit spectrum has $-147.632415$ three-fold degenerate); either sector can be used for the ground-state VQE.
+  - The 16 tapered 4×4 sectors together reproduce all 64 eigenvalues of the 6-qubit Hamiltonian (checked in `tests/test_tapering.py`).
+- **Hardware-Efficient Execution**: Both states are resolved independently with a **2-qubit, 1-CNOT ansatz** (RY+RZ on each qubit, CNOT, RY+RZ on each qubit; 8 parameters). One CNOT is enough to reach any 2-qubit state, complex amplitudes included. The earlier RY-only, 4-parameter version with plain SGD (60 steps, lr 0.15, float32) stalled for $S_1$ at $-147.552780$ Ha (ΔE 2.167 eV); the current version uses Adam, float64 and 4 random restarts.
+
+| Sector | Exact ground energy (Ha) | State |
+| :--- | :---: | :--- |
+| `[-1, -1, 1, 1]` | −147.632415 | $T_0$ (triplet) |
+| `[-1, -1, -1, -1]` | −147.632415 | $T_0$ (triplet) |
+| `[1, 1, -1, -1]` | −147.578487 | $S_1$ (singlet), also the HF `optimal_sector` |
+| `[1, -1, *, *]`, `[-1, 1, *, *]` | −147.367791 or −147.155638 | higher states |
+| `[-1, -1, 1, -1]`, `[-1, -1, -1, 1]` | −146.954379 | higher states |
+| `[1, 1, 1, -1]`, `[1, 1, -1, 1]` | −146.859907 | higher states |
+| `[1, 1, 1, 1]` | −146.530873 | higher states |
+
+Generators (in order): $Z_0Z_1$, $Z_2Z_3$, $Z_0Z_2Z_4$, $Z_0Z_2Z_5$; tapered wires 1, 3, 4, 5.
+
+### Code, tests and reproducing the numbers
+
+| File | Content |
+| :--- | :--- |
+| `o2_tapering.py` | `build_o2_hamiltonian`, `taper_hamiltonian`, `scan_all_sectors`, `destructive_swap_overlap`, `run_2q_vqe`, `circuit_gate_counts`. `python o2_tapering.py` prints the sector scan, the 2-qubit VQE results and the gate-count table. |
+| `tests/test_tapering.py` | (1) union of the 16 sector spectra = full 64-eigenvalue spectrum; (2) $T_0$/$S_1$ sector energies and ΔE ≈ 1.4675 eV; (3) 2-qubit VQE within $10^{-4}$ Ha of exact for $T_0$ and $S_1$; (4) destructive SWAP test = $\lvert\langle\psi\vert\phi\rangle\rvert^2$. |
+| `.github/workflows/tests.yml` | Runs `pytest` and the report script on every push. |
+
+```bash
+pip install pennylane openfermionpyscf "jax[cpu]" optax pytest
+pytest -v tests/
+python o2_tapering.py
+```
+
+---
+
+### Project Scope, Scientific Limitations & Compilation Perspective
+
+#### 1. Scope: Compilation Optimization vs. Model Accuracy
+A critical distinction in this project is between **chemical model accuracy** and **quantum compilation precision**:
+* **The Goal**: This study focuses on **quantum circuit compilation, hardware depth optimization, and symmetry reduction**—investigating how to faithfully simulate an electronic structure Hamiltonian on the smallest possible quantum register with minimal two-qubit gate depth.
+* **Model Truth vs. Experimental Truth**:
+  - Exact diagonalisation of the tapered sectors gives $\Delta E = 1.4675\text{ eV}$, identical to the full active-space CASCI limit of the STO-3G CAS(2, 3) Hamiltonian. The 2-qubit VQE is tested to reach each sector energy within $10^{-4}$ Ha (≈ 3 meV); the measured VQE error is TBD (printed by `python o2_tapering.py`).
+  - The experimental excitation energy for the $T_0 \to S_1$ transition is **$0.980\text{ eV}$**.
+  - **Key Remark**: The gap between $1.467\text{ eV}$ and $0.980\text{ eV}$ is **not a quantum algorithmic error**. It is the physical truncation error of using a minimal STO-3G basis set and a 2-electron, 3-orbital active space. Expanding the basis set (e.g. to cc-pVTZ) improves the physical agreement but balloons the qubit count classically. Our study addresses the core bottleneck of quantum computing: *given an electronic Hamiltonian, how do we compile it down to the absolute minimal hardware footprint?*
+
+#### 2. Methodological Limitations & Remarks
+* **Cross-Sector vs. Same-Sector Excited States**:
+  - Exploiting symmetry sectors enabled resolving $T_0$ and $S_1$ with zero SWAP tests because they belong to orthogonal eigenspaces (`[-1, -1, 1, 1]` vs `[1, 1, -1, -1]`).
+  - *Limitation*: For excited states that reside in the **same** symmetry sector as the ground state (e.g., higher triplet excitations $T_n$), sector projection alone cannot separate them. In such cases, subspace methods or VQD with destructive SWAP tests must still be deployed within the tapered subspace.
+* **Diradical Multi-Sector Evaluation**:
+  - Conventional quantum chemistry tapering packages (e.g., standard `optimal_sector`) assume a closed-shell Hartree-Fock reference state ($|110000\rangle$, singlet).
+  - For open-shell diradicals like $O_2$ (triplet ground state with parallel unpaired electrons), closed-shell formulas fail to identify the true ground-state sector. We resolved this by implementing an exhaustive spectral scan across all $2^k$ candidate sectors, which diagonalizes in milliseconds.
+
+#### 3. Hardware Deployment Outlook (Alice & Bob Cat Qubits)
+* **Biased-Noise Advantage**:
+  - In cat qubits, autonomous two-photon stabilization exponentially suppresses bit-flips ($\kappa_2 \gg \kappa_1$), making phase flips the dominant noise.
+  - Since two-qubit entangling gates are the primary source of residual noise, reducing the entangling gate count from the CSWAP-based VQD circuit (measured count in the table above) to **1 CNOT** represents an exponential reduction in hardware dephasing error.
+* **Transpilation to Discrete Logical Gate Sets**:
+  - Analog variational rotations ($RY(\theta)$) must be compiled into discrete Clifford + $T$ gate sets (e.g. via Gridsynth) when deploying to Alice & Bob logical emulators (`EMU:40Q:LOGICAL_NOISELESS`). Compiling to 1 CNOT drastically simplifies the transpilation pipeline and avoids deep $T$-gate expansions.
 
 ---
 
