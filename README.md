@@ -1,39 +1,64 @@
 # NQCC-2025-O2-VQE-and-Qubit-Tapering
 
-## Symmetry-Aware Quantum Circuit Compilation & Qubit Tapering for Molecular Oxygen ($O_2$)
+## Qubit Tapering and Circuit Resource Reduction for Molecular Oxygen (O₂)
 
-This repository implements a quantum compilation and simulation pipeline for the **NQCC 2025 Hackathon** (OpenBioSim & Alice & Bob cat-qubit challenge), targeting the vertical excitation energy ($T_0 \to S_1$) of molecular dioxygen ($O_2$).
+A self-study project built on the **NQCC 2025 Hackathon** challenge (OpenBioSim / Alice & Bob), forked from [OpenBioSim/nqcc-hackathon-2025](https://github.com/OpenBioSim/nqcc-hackathon-2025).
 
----
+**Goal:** compute the T₀ → S₁ vertical excitation energy of O₂ and study how symmetry-based Hamiltonian reduction (ℤ₂ qubit tapering) and overlap-test simplifications reduce the qubit count and entangling-gate cost. The focus is on **resources**, not on improving chemical accuracy beyond the given active-space model.
 
-### Key Compilation & Algorithmic Results
-
-| Metric | Baseline VQD (CSWAP) | Task 1: Destructive SWAP | Task 2 & 3: Tapered VQE (This Work) | Total Reduction |
-| :--- | :---: | :---: | :---: | :---: |
-| **Active Molecule Qubits** | 6 qubits | 6 qubits | 2 qubits | 67% reduction |
-| **Hardware Wires (Excited State)** | 13 qubits (with ancilla) | 12 qubits | *2 qubits | 85% reduction |
-| **Overlap / SWAP Test CNOTs** | 42 CNOTs (6 CSWAPs) | 6 CNOTs | 0 CNOTs (Orthogonal by symmetry!) | 100% eliminated |
-| **Ansatz Entangling CNOTs** | ~40 CNOTs (UCCSD) | ~40 CNOTs | 1 CNOT | 97.5% reduction |
-| **Total CNOTs per Circuit** | > 80 CNOTs | ~46 CNOTs | 1 CNOT | ~99% reduction |
-| **Vertical Excitation Energy ($\Delta E$)** | $1.515\text{ eV}$ (penalty shift) | $1.515\text{ eV}$ | $1.4675\text{ eV}$ | Exact CASCI benchmark! |
+All work is in [`VQD-O2-colab.ipynb`](VQD-O2-colab.ipynb). A derivation of the tapering pipeline is in [`QUBIT_TAPERING_GUIDE.md`](QUBIT_TAPERING_GUIDE.md).
 
 ---
 
-### Highlights for Quantum Compilation:
-- Discovered 4 independent Hamiltonian symmetry generators ($\tau_i$) using binary symplectic linear algebra over $\mathbb{F}_2$.
-- Constructed explicit unitaries $U = \prod \frac{1}{\sqrt{2}}(\tau_i + X_{k_i})$ to rotate multi-qubit symmetries onto single-qubit Pauli-$X$ operators, decoupling 4 redundant spin-orbitals.
-- Identified that the Triplet ground state ($T_0$) lives in sector `[-1, -1, 1, 1]` while the Singlet excited state ($S_1$) lives in sector `[1, 1, -1, -1]`. Because both states reside in distinct eigenspaces, $\langle T_0 | S_1 \rangle = 0$ is strictly guaranteed by symmetry, eliminating the need for VQD overlap penalties or SWAP test ancillas.
-- Both states are independently resolved with a 2-qubit, 1-CNOT ansatz with 4 parameters, completely avoiding barren plateaus and NISQ dephasing errors.
+### Model
+- O₂ at r = 2.30 Bohr, STO-3G basis, active space of 2 electrons in 3 spatial orbitals → **6 qubits** (Jordan–Wigner), 34 Pauli terms.
+
+### Results
+
+| | Baseline VQD (CSWAP overlap test) | Task 1: Destructive SWAP VQD | Tasks 2–3: Tapered, sector-resolved |
+| :--- | :---: | :---: | :---: |
+| Qubits per state | 6 | 6 | **2** |
+| Total wires for excited-state run | 13 (12 + ancilla) | 12 | **2** |
+| Overlap-test gates | 6 CSWAPs (CNOT count: TBD) | 6 CNOTs + 6 H | **None needed** (states lie in different symmetry sectors) |
+| Ansatz | `AllSinglesDoubles`, 8 parameters (CNOT count: TBD) | same | 2-qubit RY–CNOT–RY, 4 parameters, 1 CNOT |
+| E(T₀) / Ha | −147.63229 (VQE) | — | −147.632415 (exact diag.); VQE: TBD |
+| E(S₁) / Ha | −147.57663 (VQD) | — | −147.578487 (exact diag.); VQE: TBD |
+| ΔE(T₀→S₁) / eV | 1.515 | — | **1.4675** (exact diag. of tapered sectors); VQE: TBD |
+
+Reference values: 1.467 eV is the exact result for this active space (the challenge's stated value); experiment is 0.980 eV.
 
 ---
 
-### Limitations of the current version:
--  The current version reproduces the active-space CASCI mathematical limit ($1.4675\text{ eV}$) with sub-millielectronvolt precision. However, it differs from the experimental truth ($0.980\text{ eV}$). The objective was compiler and gate-depth optimization, rather than expanding the classical basis set.
-- If an excited state belongs to the same symmetry sector as the GS, sector separation alone cannot decouple them. In this case, we must still employ destructive SWAP inside the tapered subspace.
+### What was done
+- **Destructive SWAP test (Task 1):** replaced the ancilla-based CSWAP overlap test with a Bell-basis destructive SWAP test (transversal CNOT + H, followed by classical parity post-processing). This removes the ancilla and all controlled-SWAP gates.
+- **ℤ₂ symmetry tapering (Task 2):** used PennyLane's `qml.symmetry_generators`, `qml.paulix_ops` and `qml.taper` to find **4 independent ℤ₂ symmetry generators** and taper the Hamiltonian from 6 qubits to 2. These routines find the generators via binary (𝔽₂) linear algebra and apply the Clifford rotations U = ∏ (τᵢ + X_kᵢ)/√2.
+- **Exhaustive sector scan:** PennyLane's `optimal_sector` picks the sector from a closed-shell Hartree–Fock reference, which doesn't suit the open-shell triplet ground state of O₂. Instead, all 2⁴ = 16 sectors were tapered and diagonalized exactly:
+  - The lowest energy, −147.632415 Ha (T₀), appears in sectors `[-1,-1,1,1]` and `[-1,-1,-1,-1]` and is doubly degenerate within each sector.
+  - −147.578487 Ha appears in sector `[1,1,-1,-1]`. This is identified as S₁ by comparison with the baseline VQD singlet energy.
+- **Sector-resolved VQE (Task 3):** because T₀ and S₁ lie in different symmetry sectors, they are exactly orthogonal. Each can be found by an independent 2-qubit VQE with no overlap penalty or SWAP test.
 
+---
 
-# Original Hackathon Repository Context & Scientific Background
+### Limitations
+- **Model accuracy vs. experiment:** 1.4675 eV is the exact answer *for this active space*, not the experimental value (0.980 eV). The gap comes from the minimal basis and small active space, not from the quantum algorithm. Improving it was outside the scope of this project.
+- **Sectors were chosen by classical diagonalization.** That is only feasible because the system is tiny. For larger systems, sectors must be fixed from physical quantum numbers (particle number, S_z, spatial symmetry) or from the reference state.
+- **S₁ identification relies on matching energies.** ⟨S²⟩ has not yet been evaluated in the tapered space; the S² operator should be tapered too to confirm the spin of each state.
+- **Same-sector excited states:** if an excited state shares a sector with the ground state, sector separation can't isolate it, and an overlap method (e.g. destructive SWAP VQD) is still needed inside the tapered space.
+- **Hardware transpilation not done yet:** gate counts above are for abstract gates. They haven't been transpiled to Alice & Bob's logical gate set (`qiskit-alice-bob-provider`), where the continuous RY angles must be synthesized from a discrete gate set.
+- **Tapering is a Hamiltonian-level reduction.** It isn't a general circuit-compilation pass and relies on symmetries specific to the problem.
 
+---
+
+### Reproducing / filling in the TBD entries
+```python
+# Gate counts for any QNode
+specs = qml.specs(my_qnode)(params)
+print(specs["resources"].gate_types)   # look at the "CNOT" (and "Toffoli"/"CSWAP") entries
+```
+
+---
+
+# Original Challenge Description (from OpenBioSim)
 Code for OpenBioSim's use case for the NQCC 2025 Hackathon
 
 This repository contains a Pennylane script to compute the energies of the ground state and the first excited state of molecular oxygen using variational quantum algorithms. 
