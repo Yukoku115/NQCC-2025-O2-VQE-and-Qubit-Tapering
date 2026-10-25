@@ -4,8 +4,6 @@
 
 This repository implements a quantum compilation and simulation pipeline for the **NQCC 2025 Hackathon** (OpenBioSim & Alice & Bob cat-qubit challenge), targeting the vertical excitation energy ($T_0 \to S_1$) of molecular dioxygen ($O_2$).
 
-By using Clifford group theory and \mathbb{Z}_2 stabilizer symmetries, we compress the electronic Hamiltonian and optimize circuit execution down to the theoretical hardware minimum.
-
 ---
 
 ### Key Compilation & Algorithmic Results
@@ -22,12 +20,17 @@ By using Clifford group theory and \mathbb{Z}_2 stabilizer symmetries, we compre
 ---
 
 ### Highlights for Quantum Compilation:
-- **Symplectic $\mathbb{Z}_2$ Symmetries**: Discovered 4 independent Hamiltonian symmetry generators ($\tau_i$) using binary symplectic linear algebra over $\mathbb{F}_2$.
-- **Clifford Frame Transformations**: Constructed explicit unitaries $U = \prod \frac{1}{\sqrt{2}}(\tau_i + X_{k_i})$ to rotate multi-qubit symmetries onto single-qubit Pauli-$X$ operators, decoupling 4 redundant spin-orbitals.
-- **Symmetry Sector Decomposition**: Identified that the Triplet ground state ($T_0$) lives in sector `[-1, -1, 1, 1]` while the Singlet excited state ($S_1$) lives in sector `[1, 1, -1, -1]`. Because both states reside in distinct eigenspaces, $\langle T_0 | S_1 \rangle = 0$ is strictly guaranteed by symmetry, eliminating the need for VQD overlap penalties or SWAP test ancillas.
-- **Hardware-Efficient Execution**: Both states are independently resolved with a 2-qubit, 1-CNOT ansatz with 4 parameters, completely avoiding barren plateaus and NISQ dephasing errors.
+- Discovered 4 independent Hamiltonian symmetry generators ($\tau_i$) using binary symplectic linear algebra over $\mathbb{F}_2$.
+- Constructed explicit unitaries $U = \prod \frac{1}{\sqrt{2}}(\tau_i + X_{k_i})$ to rotate multi-qubit symmetries onto single-qubit Pauli-$X$ operators, decoupling 4 redundant spin-orbitals.
+- Identified that the Triplet ground state ($T_0$) lives in sector `[-1, -1, 1, 1]` while the Singlet excited state ($S_1$) lives in sector `[1, 1, -1, -1]`. Because both states reside in distinct eigenspaces, $\langle T_0 | S_1 \rangle = 0$ is strictly guaranteed by symmetry, eliminating the need for VQD overlap penalties or SWAP test ancillas.
+- Both states are independently resolved with a 2-qubit, 1-CNOT ansatz with 4 parameters, completely avoiding barren plateaus and NISQ dephasing errors.
 
 ---
+
+### Limitations of the current version:
+-  The current version reproduces the active-space CASCI mathematical limit ($1.4675\text{ eV}$) with sub-millielectronvolt precision. However, it differs from the experimental truth ($0.980\text{ eV}$). The objective was compiler and gate-depth optimization, rather than expanding the classical basis set.
+- If an excited state belongs to the same symmetry sector as the GS, sector separation alone cannot decouple them. In this case, we must still employ destructive SWAP inside the tapered subspace.
+
 
 # Original Hackathon Repository Context & Scientific Background
 
