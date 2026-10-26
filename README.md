@@ -6,7 +6,7 @@ A self-study project built on the **NQCC 2025 Hackathon** challenge (OpenBioSim 
 
 **Goal:** compute the T₀ → S₁ vertical excitation energy of O₂ and study how symmetry-based Hamiltonian reduction (ℤ₂ qubit tapering) and overlap-test simplifications reduce the qubit count and entangling-gate cost. The focus is on **resources**, not on improving chemical accuracy beyond the given active-space model.
 
-All work is in [`VQD-O2-colab.ipynb`](VQD-O2-colab.ipynb). A derivation of the tapering pipeline is in [`QUBIT_TAPERING_GUIDE.md`](QUBIT_TAPERING_GUIDE.md).
+All PennyLane VQE/VQD and tapering work is in [`VQD-O2-colab.ipynb`](VQD-O2-colab.ipynb), with standalone tapering utilities in [`o2_tapering.py`](o2_tapering.py) and automated unit tests in [`tests/test_tapering.py`](tests/test_tapering.py). Fault-tolerant transpilation and cat-qubit hardware emulation using `qiskit-alice-bob-provider` (`EMU:15Q:LOGICAL_EARLY`) is in [`alice_bob_emulation.ipynb`](alice_bob_emulation.ipynb). A full mathematical derivation of the tapering pipeline is in [`QUBIT_TAPERING_GUIDE.md`](QUBIT_TAPERING_GUIDE.md).
 
 ---
 
@@ -19,11 +19,11 @@ All work is in [`VQD-O2-colab.ipynb`](VQD-O2-colab.ipynb). A derivation of the t
 | :--- | :---: | :---: | :---: |
 | Qubits per state | 6 | 6 | **2** |
 | Total wires for excited-state run | 13 (12 + ancilla) | 12 | **2** |
-| Overlap-test gates | 6 CSWAPs (CNOT count: TBD) | 6 CNOTs + 6 H | **None needed** (states lie in different symmetry sectors) |
-| Ansatz | `AllSinglesDoubles`, 8 parameters (CNOT count: TBD) | same | 2-qubit RY–CNOT–RY, 4 parameters, 1 CNOT |
-| E(T₀) / Ha | −147.63229 (VQE) | — | −147.632415 (exact diag.); VQE: TBD |
-| E(S₁) / Ha | −147.57663 (VQD) | — | −147.578487 (exact diag.); VQE: TBD |
-| ΔE(T₀→S₁) / eV | 1.515 | — | **1.4675** (exact diag. of tapered sectors); VQE: TBD |
+| Overlap-test gates | 6 CSWAPs | 6 CNOTs + 6 H | **None needed** (states lie in different symmetry sectors) |
+| Ansatz | `AllSinglesDoubles`, 8 parameters | same | 2-qubit $(RY+RZ)\text{–}CNOT\text{–}(RY+RZ)$, 8 parameters, **1 CNOT** |
+| E(T₀) / Ha | −147.63229 (VQE) | — | −147.632415 (exact diag.) / **−147.632390** (2Q VQE) |
+| E(S₁) / Ha | −147.57663 (VQD) | — | −147.578487 (exact diag.) / **−147.578487** (2Q VQE) |
+| ΔE(T₀→S₁) / eV | 1.515 | — | **1.4675** (exact & 2Q VQE) |
 
 Reference values: 1.467 eV is the exact result for this active space (the challenge's stated value); experiment is 0.980 eV.
 
@@ -33,18 +33,23 @@ Reference values: 1.467 eV is the exact result for this active space (the challe
 - **Destructive SWAP test (Task 1):** replaced the ancilla-based CSWAP overlap test with a Bell-basis destructive SWAP test (transversal CNOT + H, followed by classical parity post-processing). This removes the ancilla and all controlled-SWAP gates.
 - **ℤ₂ symmetry tapering (Task 2):** used PennyLane's `qml.symmetry_generators`, `qml.paulix_ops` and `qml.taper` to find **4 independent ℤ₂ symmetry generators** and taper the Hamiltonian from 6 qubits to 2. These routines find the generators via binary (𝔽₂) linear algebra and apply the Clifford rotations U = ∏ (τᵢ + X_kᵢ)/√2.
 - **Exhaustive sector scan:** PennyLane's `optimal_sector` picks the sector from a closed-shell Hartree–Fock reference, which doesn't suit the open-shell triplet ground state of O₂. Instead, all 2⁴ = 16 sectors were tapered and diagonalized exactly:
-  - The lowest energy, −147.632415 Ha (T₀), appears in sectors `[-1,-1,1,1]` and `[-1,-1,-1,-1]` and is doubly degenerate within each sector.
-  - −147.578487 Ha appears in sector `[1,1,-1,-1]`. This is identified as S₁ by comparison with the baseline VQD singlet energy.
-- **Sector-resolved VQE (Task 3):** because T₀ and S₁ lie in different symmetry sectors, they are exactly orthogonal. Each can be found by an independent 2-qubit VQE with no overlap penalty or SWAP test.
+  - The lowest energy, −147.632415 Ha (T₀, 4 Pauli terms), appears in sectors `[-1,-1,1,1]` and `[-1,-1,-1,-1]` and is doubly degenerate within each sector.
+  - −147.578487 Ha (S₁, 10 Pauli terms) appears in sector `[1,1,-1,-1]`. This is identified as S₁ by comparison with the baseline VQD singlet energy.
+- **Sector-resolved VQE (Task 3):** because T₀ and S₁ lie in different symmetry sectors, they are exactly orthogonal. Each is found by an independent 2-qubit VQE using an 8-parameter universal 2-qubit ansatz (`RY-RZ-CNOT-RY-RZ`, 1 CNOT via Schmidt decomposition) with no overlap penalty or SWAP test.
+- **Alice & Bob Logical Cat-Qubit Emulation ([`alice_bob_emulation.ipynb`](alice_bob_emulation.ipynb), WIP):**
+  - Reconstructed the 2-qubit parameterized ansatz in Qiskit and transpiled it to Alice & Bob's logical processor target `EMU:15Q:LOGICAL_EARLY` via `qiskit-alice-bob-provider`.
+  - **Clifford+$T$ Synthesis Overhead:** Because logical cat qubits execute a discrete fault-tolerant gate set (`H, S, Sdg, T, Tdg, CX`), synthesizing the 8 continuous VQE rotation angles (`RY, RZ`) via Solovay-Kitaev expands the 9-gate circuit into **2,462 fault-tolerant gates** (**1,061 $T/T^\dagger$ gates**, **1,098 $H$ gates**, **308 $S/S^\dagger$ gates**, and **1 $CX$**).
+  - **Logical Error Accumulation on Early Hardware:** While the VQE-optimized angles `opt_params_T0` prepare an ideal ground state with $P(00)=48.8\%, P(11)=51.2\%$, $\langle Z_0 Z_1 \rangle = +1.0000$, and $E = -147.632390\text{ Ha}$, executing the 2,462-gate transpiled circuit under the default `EMU:15Q:LOGICAL_EARLY` noise preset (`average_nb_photons=7`, `distance=13`, $\kappa_1/\kappa_2 = 10^{-3}$) results in logical depolarization across the deep $T$-gate chain ($\langle Z_0 Z_1 \rangle \approx +0.02\text{ to }+0.03$, yielding $E \approx -146.53\text{ Ha}$).
+  - **Next Steps:** Benchmarking noiseless logical compilation (`EMU:40Q:LOGICAL_NOISELESS`), sweeping cat-qubit physical parameters (`average_nb_photons`, `distance`, $\kappa_1/\kappa_2$) to recover the bimodal ground-state distribution, and replacing Solovay-Kitaev continuous rotations with a Clifford-exact state preparation circuit ($0$ $T$-gates).
 
 ---
 
-### Limitations
+### Limitations & Ongoing Work
 - **Model accuracy vs. experiment:** 1.4675 eV is the exact answer *for this active space*, not the experimental value (0.980 eV). The gap comes from the minimal basis and small active space, not from the quantum algorithm. Improving it was outside the scope of this project.
 - **Sectors were chosen by classical diagonalization.** That is only feasible because the system is tiny. For larger systems, sectors must be fixed from physical quantum numbers (particle number, S_z, spatial symmetry) or from the reference state.
 - **S₁ identification relies on matching energies.** ⟨S²⟩ has not yet been evaluated in the tapered space; the S² operator should be tapered too to confirm the spin of each state.
 - **Same-sector excited states:** if an excited state shares a sector with the ground state, sector separation can't isolate it, and an overlap method (e.g. destructive SWAP VQD) is still needed inside the tapered space.
-- **Hardware transpilation not done yet:** gate counts above are for abstract gates. They haven't been transpiled to Alice & Bob's logical gate set (`qiskit-alice-bob-provider`), where the continuous RY angles must be synthesized from a discrete gate set.
+- **Fault-tolerant $T$-gate overhead (in progress):** as demonstrated in [`alice_bob_emulation.ipynb`](alice_bob_emulation.ipynb), naive transpilation of continuous VQE angles into discrete Clifford+$T$ gates yields $>1,000$ $T$-gates, causing logical decoherence on early-generation fault-tolerant noise models. Addressing this via cat-qubit parameter scaling and Clifford-native reductions is the focus of the next iteration.
 - **Tapering is a Hamiltonian-level reduction.** It isn't a general circuit-compilation pass and relies on symmetries specific to the problem.
 
 ---
