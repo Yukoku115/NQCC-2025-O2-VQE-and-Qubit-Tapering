@@ -154,6 +154,8 @@ def ansatz_2q(params, wires=(0, 1)):
     qml.RZ(params[7], wires=w1)
 
 
+
+
 def make_2q_cost(H_2q):
     dev = qml.device("default.qubit", wires=2)
 
