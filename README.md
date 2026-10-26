@@ -6,7 +6,7 @@ A self-study project built on the **NQCC 2025 Hackathon** challenge (OpenBioSim 
 
 **Goal:** compute the T₀ → S₁ vertical excitation energy of O₂ and study how symmetry-based Hamiltonian reduction (ℤ₂ qubit tapering) and overlap-test simplifications reduce the qubit count and entangling-gate cost. The focus is on **resources**, not on improving chemical accuracy beyond the given active-space model.
 
-All PennyLane VQE/VQD and tapering work is in [`VQD-O2-colab.ipynb`](VQD-O2-colab.ipynb), with standalone tapering utilities in [`o2_tapering.py`](o2_tapering.py) and automated unit tests in [`tests/test_tapering.py`](tests/test_tapering.py). Fault-tolerant transpilation and cat-qubit hardware emulation using `qiskit-alice-bob-provider` (`EMU:15Q:LOGICAL_EARLY`) is in [`alice_bob_emulation.ipynb`](alice_bob_emulation.ipynb). A full mathematical derivation of the tapering pipeline is in [`QUBIT_TAPERING_GUIDE.md`](QUBIT_TAPERING_GUIDE.md).
+All PennyLane VQE/VQD and tapering work is in [`VQD-O2-colab.ipynb`](VQD-O2-colab.ipynb), with standalone tapering utilities in [`o2_tapering.py`](o2_tapering.py) and unit tests in [`tests/test_tapering.py`](tests/test_tapering.py). Hardware emulation using Alice & Bob's Qiskit provider (`EMU:15Q:LOGICAL_EARLY`) is in [`alice_bob_emulation.ipynb`](alice_bob_emulation.ipynb). A derivation of the tapering pipeline is in [`QUBIT_TAPERING_GUIDE.md`](QUBIT_TAPERING_GUIDE.md).
 
 ---
 
@@ -20,9 +20,9 @@ All PennyLane VQE/VQD and tapering work is in [`VQD-O2-colab.ipynb`](VQD-O2-cola
 | Qubits per state | 6 | 6 | **2** |
 | Total wires for excited-state run | 13 (12 + ancilla) | 12 | **2** |
 | Overlap-test gates | 6 CSWAPs | 6 CNOTs + 6 H | **None needed** (states lie in different symmetry sectors) |
-| Ansatz | `AllSinglesDoubles`, 8 parameters | same | 2-qubit $(RY+RZ)\text{–}CNOT\text{–}(RY+RZ)$, 8 parameters, **1 CNOT** |
-| E(T₀) / Ha | −147.63229 (VQE) | — | −147.632415 (exact diag.) / **−147.632390** (2Q VQE) |
-| E(S₁) / Ha | −147.57663 (VQD) | — | −147.578487 (exact diag.) / **−147.578487** (2Q VQE) |
+| Ansatz | `AllSinglesDoubles`, 8 parameters | same | 2-qubit `RY-RZ-CNOT-RY-RZ`, 8 parameters, **1 CNOT** |
+| E(T₀) / Ha | −147.63229 (VQE) | — | −147.632415 (exact) / **−147.632390** (2Q VQE) |
+| E(S₁) / Ha | −147.57663 (VQD) | — | −147.578487 (exact) / **−147.578487** (2Q VQE) |
 | ΔE(T₀→S₁) / eV | 1.515 | — | **1.4675** (exact & 2Q VQE) |
 
 Reference values: 1.467 eV is the exact result for this active space (the challenge's stated value); experiment is 0.980 eV.
@@ -35,12 +35,12 @@ Reference values: 1.467 eV is the exact result for this active space (the challe
 - **Exhaustive sector scan:** PennyLane's `optimal_sector` picks the sector from a closed-shell Hartree–Fock reference, which doesn't suit the open-shell triplet ground state of O₂. Instead, all 2⁴ = 16 sectors were tapered and diagonalized exactly:
   - The lowest energy, −147.632415 Ha (T₀, 4 Pauli terms), appears in sectors `[-1,-1,1,1]` and `[-1,-1,-1,-1]` and is doubly degenerate within each sector.
   - −147.578487 Ha (S₁, 10 Pauli terms) appears in sector `[1,1,-1,-1]`. This is identified as S₁ by comparison with the baseline VQD singlet energy.
-- **Sector-resolved VQE (Task 3):** because T₀ and S₁ lie in different symmetry sectors, they are exactly orthogonal. Each is found by an independent 2-qubit VQE using an 8-parameter universal 2-qubit ansatz (`RY-RZ-CNOT-RY-RZ`, 1 CNOT via Schmidt decomposition) with no overlap penalty or SWAP test.
-- **Alice & Bob Logical Cat-Qubit Emulation ([`alice_bob_emulation.ipynb`](alice_bob_emulation.ipynb), WIP):**
-  - Reconstructed the 2-qubit parameterized ansatz in Qiskit and transpiled it to Alice & Bob's logical processor target `EMU:15Q:LOGICAL_EARLY` via `qiskit-alice-bob-provider`.
-  - **Clifford+$T$ Synthesis Overhead:** Because logical cat qubits execute a discrete fault-tolerant gate set (`H, S, Sdg, T, Tdg, CX`), synthesizing the 8 continuous VQE rotation angles (`RY, RZ`) via Solovay-Kitaev expands the 9-gate circuit into **2,462 fault-tolerant gates** (**1,061 $T/T^\dagger$ gates**, **1,098 $H$ gates**, **308 $S/S^\dagger$ gates**, and **1 $CX$**).
-  - **Logical Error Accumulation on Early Hardware:** While the VQE-optimized angles `opt_params_T0` prepare an ideal ground state with $P(00)=48.8\%, P(11)=51.2\%$, $\langle Z_0 Z_1 \rangle = +1.0000$, and $E = -147.632390\text{ Ha}$, executing the 2,462-gate transpiled circuit under the default `EMU:15Q:LOGICAL_EARLY` noise preset (`average_nb_photons=7`, `distance=13`, $\kappa_1/\kappa_2 = 10^{-3}$) results in logical depolarization across the deep $T$-gate chain ($\langle Z_0 Z_1 \rangle \approx +0.02\text{ to }+0.03$, yielding $E \approx -146.53\text{ Ha}$).
-  - **Next Steps:** Benchmarking noiseless logical compilation (`EMU:40Q:LOGICAL_NOISELESS`), sweeping cat-qubit physical parameters (`average_nb_photons`, `distance`, $\kappa_1/\kappa_2$) to recover the bimodal ground-state distribution, and replacing Solovay-Kitaev continuous rotations with a Clifford-exact state preparation circuit ($0$ $T$-gates).
+- **Sector-resolved VQE (Task 3):** because T₀ and S₁ lie in different symmetry sectors, they are orthogonal. Each can be found by an independent 2-qubit VQE using an 8-parameter 2-qubit circuit (`RY-RZ-CNOT-RY-RZ`, 1 CNOT) with no overlap penalty or SWAP test.
+- **Alice & Bob Emulator Testing ([`alice_bob_emulation.ipynb`](alice_bob_emulation.ipynb), WIP):**
+  - Rebuilt the 2-qubit circuit in Qiskit and transpiled it for Alice & Bob's logical emulator (`EMU:15Q:LOGICAL_EARLY`).
+  - **Gate count expansion:** Because logical qubits only run a discrete set of gates (`H, S, T, CX`), Qiskit has to approximate the 8 continuous rotation angles (`RY, RZ`) using long sequences of discrete gates. This turns a 9-gate circuit into **2,462 gates** (including **1,061 $T/T^\dagger$ gates** and **1,098 $H$ gates**).
+  - **Effect of hardware noise:** In an ideal noiseless simulation, the VQE angles for T₀ give only `'00'` (~49%) and `'11'` (~51%), so $\langle Z_0 Z_1 \rangle = +1.0$ and the energy is **−147.632 Ha**. On `EMU:15Q:LOGICAL_EARLY` with its default noise settings, errors build up across the 2,462 gates and randomize the output (~25% for each state), pushing $\langle Z_0 Z_1 \rangle$ to ~0 and the measured energy to **−146.53 Ha**.
+  - **Next steps:** Test the noiseless logical backend (`EMU:40Q:LOGICAL_NOISELESS`), adjust the emulator's noise parameters (`average_nb_photons`, `distance`, `kappa_1/kappa_2`) to see when the clean `'00'`/`'11'` counts return, and test a simpler circuit without $T$-gates.
 
 ---
 
@@ -49,17 +49,8 @@ Reference values: 1.467 eV is the exact result for this active space (the challe
 - **Sectors were chosen by classical diagonalization.** That is only feasible because the system is tiny. For larger systems, sectors must be fixed from physical quantum numbers (particle number, S_z, spatial symmetry) or from the reference state.
 - **S₁ identification relies on matching energies.** ⟨S²⟩ has not yet been evaluated in the tapered space; the S² operator should be tapered too to confirm the spin of each state.
 - **Same-sector excited states:** if an excited state shares a sector with the ground state, sector separation can't isolate it, and an overlap method (e.g. destructive SWAP VQD) is still needed inside the tapered space.
-- **Fault-tolerant $T$-gate overhead (in progress):** as demonstrated in [`alice_bob_emulation.ipynb`](alice_bob_emulation.ipynb), naive transpilation of continuous VQE angles into discrete Clifford+$T$ gates yields $>1,000$ $T$-gates, causing logical decoherence on early-generation fault-tolerant noise models. Addressing this via cat-qubit parameter scaling and Clifford-native reductions is the focus of the next iteration.
+- **$T$-gate overhead on the logical emulator (in progress):** transpiling continuous VQE angles into discrete gates creates over 1,000 $T$-gates, which is too deep for the default noise level of `EMU:15Q:LOGICAL_EARLY`. Reducing this gate count or tuning the hardware noise parameters is the next step.
 - **Tapering is a Hamiltonian-level reduction.** It isn't a general circuit-compilation pass and relies on symmetries specific to the problem.
-
----
-
-### Reproducing / filling in the TBD entries
-```python
-# Gate counts for any QNode
-specs = qml.specs(my_qnode)(params)
-print(specs["resources"].gate_types)   # look at the "CNOT" (and "Toffoli"/"CSWAP") entries
-```
 
 ---
 
